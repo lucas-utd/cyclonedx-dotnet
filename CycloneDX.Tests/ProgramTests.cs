@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Threading.Tasks;
 using CycloneDX.Interfaces;
@@ -129,6 +130,23 @@ namespace CycloneDX.Tests
             var exitCode = await runner.HandleCommandAsync(runOptions);
 
             Assert.NotEqual((int)ExitCode.OK, exitCode);            
+        }
+
+        [Fact]
+        public async Task CallingCycloneDX_BurnAIAPP()
+        {
+            string[] args =
+            [
+                @"D:\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
+                "-j",
+                "-o", @"D:\Test\Bom",
+            ];
+
+           (int exitCode,  Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
+
+
+            Assert.Equal((int)ExitCode.OK, exitCode);
+            Assert.True(File.Exists(@"D:\Test\Bom\bom.json"));
         }
     }
 }

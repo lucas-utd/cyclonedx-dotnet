@@ -23,9 +23,15 @@ namespace CycloneDX
 {
     public static class Program
     {
-        public static Task<int> Main(string[] args)
+        public static async Task<int> Main(string[] args)
         {
+            (int exitCode, Bom bom) = await ExecuteRootCommand(args);
+            return exitCode;
+        }
 
+        public static Task<(int, Bom)> ExecuteRootCommand(string[] args)
+        {
+            Bom lastGeneratedBom = null;
 
             var SolutionOrProjectFile = new Argument<string>("path", description: "The path to a .sln, .slnf, .slnx, .csproj, .fsproj, .vbproj, .xsproj, or packages.config file or the path to a directory which will be recursively analyzed for packages.config files.");
             var framework = new Option<string>(new[] { "--framework", "-tfm" }, "The target framework to use. If not defined, all will be aggregated.");
@@ -149,8 +155,15 @@ namespace CycloneDX
                 var taskStatus = await runner.HandleCommandAsync(options);
                 context.ExitCode = taskStatus;
 
+                if (taskStatus == (int)ExitCode.OK && runner.LastGeneratedBom != null)
+                {
+                    lastGeneratedBom = runner.LastGeneratedBom;
+                }
+
             });
-            return Task.FromResult(rootCommand.Invoke(args));
+
+            var exitCode = rootCommand.Invoke(args);
+            return Task.FromResult<(int, Bom)>((exitCode, lastGeneratedBom));
         }
     }
 }

@@ -347,6 +347,28 @@ namespace CycloneDX.Services
                 }
             }
 
+            // Get publish date
+            var metadataResource = await _sourceRepository.GetResourceAsync<PackageMetadataResource>();
+            IEnumerable<IPackageSearchMetadata> metadata = await metadataResource.GetMetadataAsync(name, includePrerelease: true, includeUnlisted: false, _sourceCacheContext, _logger, _cancellationToken);
+
+            foreach (var entry in metadata)
+            {
+                if (entry.Identity.Version.OriginalVersion.Equals(version, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (entry.Published.HasValue)
+                    {
+                        // You can store it into the component in a custom property or log it
+                        component.Properties ??= new List<Property>();
+                        component.Properties.Add(new Property
+                        {
+                            Name = "nuget:published",
+                            Value = entry.Published.Value.ToString("o") // ISO 8601 format
+                        });
+                    }
+                    break;
+                }
+            }
+
             return component;
         }
 
