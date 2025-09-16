@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
+using System.Linq;
 using System.Threading.Tasks;
 using CycloneDX.Interfaces;
 using CycloneDX.Models;
@@ -76,7 +77,7 @@ namespace CycloneDX.Tests
                 .Setup(s => s.GetSolutionDotnetDependencys(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<string>(), It.IsAny<string>()))
                 .ReturnsAsync(new HashSet<DotnetDependency>());
 
-            Runner runner = new Runner(fileSystem: mockFileSystem, null, null, null, null, null, solutionFileService: mockSolutionFileService.Object, null);            
+            Runner runner = new Runner(fileSystem: mockFileSystem, null, null, null, null, null, solutionFileService: mockSolutionFileService.Object, null);
 
             RunOptions runOptions = new RunOptions
             {
@@ -129,7 +130,7 @@ namespace CycloneDX.Tests
 
             var exitCode = await runner.HandleCommandAsync(runOptions);
 
-            Assert.NotEqual((int)ExitCode.OK, exitCode);            
+            Assert.NotEqual((int)ExitCode.OK, exitCode);
         }
 
         [Fact]
@@ -138,15 +139,99 @@ namespace CycloneDX.Tests
             string[] args =
             [
                 @"D:\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
-                "-j",
                 "-o", @"D:\Test\Bom",
             ];
 
-           (int exitCode,  Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
+            (int exitCode, Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
+
+            await ExportComponentsToCsv(bom, @"D:\Test\Bom\bom.csv");
 
 
             Assert.Equal((int)ExitCode.OK, exitCode);
-            Assert.True(File.Exists(@"D:\Test\Bom\bom.json"));
+            Assert.True(File.Exists(@"D:\Test\Bom\bom.xml"));
+            Assert.True(File.Exists(@"D:\Test\Bom\bom.csv"));
+        }
+
+
+        // Please try to avoid using var in the below method to make it easier to read
+        private static async Task ExportComponentsToCsv(Bom bom, string csvPath)
+        {
+            List<string> lines =
+            [
+                // Header
+                "PURL,Hascode,Name,Version,Description,License URL,Release Date,External References,Relationship",
+            ];
+
+            // Build a lookup for dependencies
+            Dictionary<string, List<string>> dependencyMap = [];
+            if (bom.Dependencies != null)
+            {
+                foreach (Dependency dep in bom.Dependencies)
+                {
+                    if (string.Equals(dep.Ref, @"SpectralAI.Burn@0.0.0"))
+                    {
+                        // Skip main project reference
+                        continue;
+                    }
+                    if (dep.Dependencies != null)
+                    {
+                        foreach (Dependency dependsOn in dep.Dependencies)
+                        {
+                            string dependsOnRef = dependsOn.Ref;
+                            if (string.Equals(dependsOnRef, dep.Ref, StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Skip self-references
+                                continue;
+                            }
+                            if (!dependencyMap.TryGetValue(dependsOnRef, out var value))
+                            {
+                                value = [];
+                                dependencyMap[dependsOnRef] = value;
+                            }
+
+                            value.Add(dep.Ref);
+                        }
+                    }
+                }
+            }
+
+            IEnumerable<Component> components = bom.Components ?? Enumerable.Empty<Component>();
+            foreach (Component component in components)
+            {
+                string purl = component.BomRef ?? "";
+                string hascode = (component.Hashes != null && component.Hashes.Count > 0) ? component.Hashes[0].Content ?? "" : "";
+                string name = component.Name ?? "";
+                string version = component.Version ?? "";
+                string description = component.Description ?? "";
+                string licenseUrl = (component.Licenses != null && component.Licenses.Count > 0 && component.Licenses[0].License.Url != null)
+                    ? component.Licenses[0].License.Url ?? "" : "";
+                Property releaseDateProperty = component.Properties?.FirstOrDefault(p => p.Name == "nuget:published");
+                string releaseDate = releaseDateProperty != null ? releaseDateProperty.Value ?? "" : "";
+                string externalRef = (component.ExternalReferences != null && component.ExternalReferences.Count > 0)
+                    ? component.ExternalReferences[0].Url ?? "" : "";
+
+                // Relationship: find which components include this one
+                string relationship = string.Empty;
+                if (dependencyMap.TryGetValue(component.BomRef, out List<string> parents) && parents.Count > 0)
+                {
+                    relationship = $"Included in {string.Join(";", parents)}";
+                }
+                relationship = string.IsNullOrEmpty(relationship) ? "Primary" : relationship;
+
+                // Escape commas in fields
+                string[] fields =
+                [
+                    purl, hascode, name, version, description, licenseUrl, releaseDate, externalRef, relationship
+                ];
+                for (int i = 0; i < fields.Length; i++)
+                {
+                    fields[i] = $"\"{fields[i].Replace("\"", "\"\"")}\"";
+                }
+
+                lines.Add(string.Join(",", fields));
+            }
+
+            await File.WriteAllLinesAsync(csvPath, lines);
         }
     }
 }
