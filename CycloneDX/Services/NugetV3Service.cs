@@ -351,7 +351,7 @@ namespace CycloneDX.Services
             var metadataResource = await _sourceRepository.GetResourceAsync<PackageMetadataResource>();
             IEnumerable<IPackageSearchMetadata> metadata = await metadataResource.GetMetadataAsync(name, includePrerelease: true, includeUnlisted: false, _sourceCacheContext, _logger, _cancellationToken);
 
-            foreach (var entry in metadata)
+            foreach (IPackageSearchMetadata entry in metadata)
             {
                 if (entry.Identity.Version.OriginalVersion.Equals(version, StringComparison.OrdinalIgnoreCase))
                 {

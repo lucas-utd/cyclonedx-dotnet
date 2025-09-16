@@ -159,7 +159,7 @@ namespace CycloneDX.Tests
             List<string> lines =
             [
                 // Header
-                "PURL,Hascode,Name,Version,Description,License URL,Release Date,External References,Relationship",
+                "PURL,Hashcode,Name,Version,Release Date,Authors,Description,Licenses,Supplier Name,Relationship,External References",
             ];
 
             // Build a lookup for dependencies
@@ -202,13 +202,20 @@ namespace CycloneDX.Tests
                 string hascode = (component.Hashes != null && component.Hashes.Count > 0) ? component.Hashes[0].Content ?? "" : "";
                 string name = component.Name ?? "";
                 string version = component.Version ?? "";
-                string description = component.Description ?? "";
-                string licenseUrl = (component.Licenses != null && component.Licenses.Count > 0 && component.Licenses[0].License.Url != null)
-                    ? component.Licenses[0].License.Url ?? "" : "";
                 Property releaseDateProperty = component.Properties?.FirstOrDefault(p => p.Name == "nuget:published");
                 string releaseDate = releaseDateProperty != null ? releaseDateProperty.Value ?? "" : "";
-                string externalRef = (component.ExternalReferences != null && component.ExternalReferences.Count > 0)
-                    ? component.ExternalReferences[0].Url ?? "" : "";
+                releaseDate = DateTime.TryParse(releaseDate, out DateTime parsedDate)
+                    ? parsedDate.ToString("M/d/yyyy")
+                    : "";
+                string authors = (component.Authors != null && component.Authors.Count > 0)
+                    ? string.Join(";", component.Authors.Select(a => a.Name).Where(n => !string.IsNullOrEmpty(n)))
+                    : "";
+                string description = component.Description ?? "";
+                string licenseUrls = (component.Licenses != null && component.Licenses.Count > 0)
+                    ? string.Join(";", component.Licenses.Select(l => l.License.Url).Where(u => !string.IsNullOrEmpty(u)))
+                    : "";
+
+                string supplierName = component.Supplier?.Name ?? "";
 
                 // Relationship: find which components include this one
                 string relationship = string.Empty;
@@ -218,10 +225,14 @@ namespace CycloneDX.Tests
                 }
                 relationship = string.IsNullOrEmpty(relationship) ? "Primary" : relationship;
 
+                string externalRefs = (component.ExternalReferences != null && component.ExternalReferences.Count > 0)
+                    ? string.Join(";", component.ExternalReferences.Select(er => $"{er.Url}").Where(r => !string.IsNullOrEmpty(r)))
+                    : "";
+
                 // Escape commas in fields
                 string[] fields =
                 [
-                    purl, hascode, name, version, description, licenseUrl, releaseDate, externalRef, relationship
+                    purl, hascode, name, version, releaseDate, authors, description, licenseUrls, supplierName, relationship, externalRefs
                 ];
                 for (int i = 0; i < fields.Length; i++)
                 {
