@@ -21,6 +21,7 @@ using System.IO;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using CycloneDX.Interfaces;
 using CycloneDX.Models;
@@ -139,27 +140,29 @@ namespace CycloneDX.Tests
             string[] args =
             [
                 @"D:\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
+                "-t",
                 "-o", @"D:\Test\Bom",
             ];
 
             (int exitCode, Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
 
-            await ExportComponentsToCsv(bom, @"D:\Test\Bom\bom.csv");
+            //await ExportBomToCsv(bom, @"D:\Test\Bom\bom.csv");
+            await ExportBomToCsv(bom, @"D:\Test\Bom\SpectralAI.Burn.csv");
 
 
             Assert.Equal((int)ExitCode.OK, exitCode);
             Assert.True(File.Exists(@"D:\Test\Bom\bom.xml"));
-            Assert.True(File.Exists(@"D:\Test\Bom\bom.csv"));
+            Assert.True(File.Exists(@"D:\Test\Bom\SpectralAI.Burn.csv"));
         }
 
 
         // Please try to avoid using var in the below method to make it easier to read
-        private static async Task ExportComponentsToCsv(Bom bom, string csvPath)
+        private static async Task ExportBomToCsv(Bom bom, string csvPath)
         {
             List<string> lines =
             [
                 // Header
-                "PURL,Hashcode,Name,Version,Release Date,Authors,Description,Licenses,Supplier Name,Relationship,External References",
+                "PURL,Hashcode,Name,Version,Release Date,Supplier Name,Description,Licenses,Relationship,Level of Support,End of Support Date,External References",
             ];
 
             // Build a lookup for dependencies
@@ -202,8 +205,7 @@ namespace CycloneDX.Tests
                 string hascode = (component.Hashes != null && component.Hashes.Count > 0) ? component.Hashes[0].Content ?? "" : "";
                 string name = component.Name ?? "";
                 string version = component.Version ?? "";
-                Property releaseDateProperty = component.Properties?.FirstOrDefault(p => p.Name == "nuget:published");
-                string releaseDate = releaseDateProperty != null ? releaseDateProperty.Value ?? "" : "";
+                string releaseDate = component.Properties?.FirstOrDefault(p => p.Name == "nuget:published")?.Value ?? "";
                 releaseDate = DateTime.TryParse(releaseDate, out DateTime parsedDate)
                     ? parsedDate.ToString("M/d/yyyy")
                     : "";
@@ -215,8 +217,6 @@ namespace CycloneDX.Tests
                     ? string.Join(";", component.Licenses.Select(l => l.License.Url).Where(u => !string.IsNullOrEmpty(u)))
                     : "";
 
-                string supplierName = component.Supplier?.Name ?? "";
-
                 // Relationship: find which components include this one
                 string relationship = string.Empty;
                 if (dependencyMap.TryGetValue(component.BomRef, out List<string> parents) && parents.Count > 0)
@@ -225,6 +225,26 @@ namespace CycloneDX.Tests
                 }
                 relationship = string.IsNullOrEmpty(relationship) ? "Primary" : relationship;
 
+                string supportLevel = string.Empty;
+                string endOfSupportDate = string.Empty;
+                if (DateTime.TryParse(component.Properties?.FirstOrDefault(p => p.Name == "nuget:latestPublished")?.Value, out DateTime latestReleaseDate))
+                {
+                    // If support date is in the future, then it's still supported
+                    if ((DateTime.Now - latestReleaseDate).Days > 365 * 2)
+                    {
+                        supportLevel = "no longer maintained";
+                        endOfSupportDate = latestReleaseDate.ToString("M/d/yyyy");
+                    }
+                    else
+                    {
+                        supportLevel = "actively maintained";
+                    }
+                }
+                else
+                {
+                    supportLevel = "unknown support";
+                }
+
                 string externalRefs = (component.ExternalReferences != null && component.ExternalReferences.Count > 0)
                     ? string.Join(";", component.ExternalReferences.Select(er => $"{er.Url}").Where(r => !string.IsNullOrEmpty(r)))
                     : "";
@@ -232,7 +252,45 @@ namespace CycloneDX.Tests
                 // Escape commas in fields
                 string[] fields =
                 [
-                    purl, hascode, name, version, releaseDate, authors, description, licenseUrls, supplierName, relationship, externalRefs
+                    purl, hascode, name, version, releaseDate, authors, description, licenseUrls, relationship, supportLevel, endOfSupportDate, externalRefs
+                ];
+                for (int i = 0; i < fields.Length; i++)
+                {
+                    fields[i] = $"\"{fields[i].Replace("\"", "\"\"")}\"";
+                }
+
+                lines.Add(string.Join(",", fields));
+            }
+
+            await File.WriteAllLinesAsync(csvPath, lines);
+        }
+
+        private static async Task ExportBomToCsv_ForDE(Bom bom, string csvPath)
+        {
+            List<string> lines =
+            [
+                // Header
+                "PURL,Name,Version,Nuget_Authors,Nuget_Tags,Nuget_Publisher,Nuget_Owners,Nuget_CPE",
+            ];
+
+            IEnumerable<Component> components = bom.Components ?? Enumerable.Empty<Component>();
+            foreach (Component component in components)
+            {
+                string purl = component.BomRef ?? "";
+                string name = component.Name ?? "";
+                string version = component.Version ?? "";
+                string authors = (component.Authors != null && component.Authors.Count > 0)
+                    ? string.Join(";", component.Authors.Select(a => a.Name).Where(n => !string.IsNullOrEmpty(n)))
+                    : "";
+                string tags = (component.Properties?.FirstOrDefault(p => p.Name == "nuget:tags")?.Value) ?? "";
+                string publisher = component.Publisher ?? "";
+                string owners = component.Properties?.FirstOrDefault(p => p.Name == "nuget:owners")?.Value ?? "";
+                string cpe = component.Cpe ?? "";
+
+                // Escape commas in fields
+                string[] fields =
+                [
+                    purl, name, version, authors, tags, publisher, owners, cpe
                 ];
                 for (int i = 0; i < fields.Length; i++)
                 {

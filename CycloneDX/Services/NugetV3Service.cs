@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.IO;
 using System.IO.Abstractions;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -348,25 +349,44 @@ namespace CycloneDX.Services
             }
 
             // Get publish date
-            var metadataResource = await _sourceRepository.GetResourceAsync<PackageMetadataResource>();
+            PackageMetadataResource metadataResource = await _sourceRepository.GetResourceAsync<PackageMetadataResource>();
             IEnumerable<IPackageSearchMetadata> metadata = await metadataResource.GetMetadataAsync(name, includePrerelease: true, includeUnlisted: false, _sourceCacheContext, _logger, _cancellationToken);
-
-            foreach (IPackageSearchMetadata entry in metadata)
+            IPackageSearchMetadata latestVersion = metadata.OrderByDescending(item => item.Published).FirstOrDefault();
+            IPackageSearchMetadata matchVersion = metadata.FirstOrDefault(item => item.Identity.Version.OriginalVersion.Equals(version, StringComparison.OrdinalIgnoreCase));
+            if (matchVersion != null)
             {
-                if (entry.Identity.Version.OriginalVersion.Equals(version, StringComparison.OrdinalIgnoreCase))
+                // You can store it into the component in a custom property or log it
+                component.Properties ??= [];
+                component.Properties.Add(new Property
                 {
-                    if (entry.Published.HasValue)
-                    {
-                        // You can store it into the component in a custom property or log it
-                        component.Properties ??= new List<Property>();
-                        component.Properties.Add(new Property
-                        {
-                            Name = "nuget:published",
-                            Value = entry.Published.Value.ToString("o") // ISO 8601 format
-                        });
-                    }
-                    break;
-                }
+                    Name = "nuget:published",
+                    Value = matchVersion.Published.Value.ToString("o") // ISO 8601 format
+                });
+                component.Properties.Add(new Property
+                {
+                    Name = "nuget:owners",
+                    Value = matchVersion.Owners
+                });
+                component.Properties.Add(new Property
+                {
+                    Name = "nuget:tags",
+                    Value = matchVersion.Tags
+                });
+            }
+
+            if (latestVersion != null)
+            {
+                component.Properties ??= [];
+                component.Properties.Add(new Property
+                {
+                    Name = "nuget:latestVersion",
+                    Value = latestVersion.Identity.Version.ToString()
+                });
+                component.Properties.Add(new Property
+                {
+                    Name = "nuget:latestPublished",
+                    Value = latestVersion.Published.Value.ToString("o") // ISO 8601 format
+                });
             }
 
             return component;
