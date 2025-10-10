@@ -142,6 +142,7 @@ namespace CycloneDX.Tests
                 @"D:\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
                 "-t",
                 "-o", @"D:\Test\Bom",
+                "-fn", "SpectralAI.Burn.json"
             ];
 
             (int exitCode, Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
@@ -151,8 +152,29 @@ namespace CycloneDX.Tests
 
 
             Assert.Equal((int)ExitCode.OK, exitCode);
-            Assert.True(File.Exists(@"D:\Test\Bom\bom.xml"));
+            Assert.True(File.Exists(@"D:\Test\Bom\SpectralAI.Burn.json"));
             Assert.True(File.Exists(@"D:\Test\Bom\SpectralAI.Burn.csv"));
+        }
+
+        [Fact]
+        public async Task CallingCycloneDX_ImagingAPP()
+        {
+            string[] args =
+            [
+                @"D:\DV-Imaging-App\SpectralMD.ImagingApp.sln",
+                "-t",
+                "-o", @"D:\Test\Bom",
+                "-fn", "SpectralMD.ImagingApp.json"
+            ];
+
+            (int exitCode, Bom bom) = await Program.ExecuteRootCommand(args).ConfigureAwait(true);
+
+            await ExportBomToCsv(bom, @"D:\Test\Bom\SpectralMD.ImagingApp.csv");
+
+
+            Assert.Equal((int)ExitCode.OK, exitCode);
+            Assert.True(File.Exists(@"D:\Test\Bom\SpectralMD.ImagingApp.json"));
+            Assert.True(File.Exists(@"D:\Test\Bom\SpectralMD.ImagingApp.csv"));
         }
 
 
@@ -171,7 +193,7 @@ namespace CycloneDX.Tests
             {
                 foreach (Dependency dep in bom.Dependencies)
                 {
-                    if (string.Equals(dep.Ref, @"SpectralAI.Burn@0.0.0"))
+                    if (string.Equals(dep.Ref, @"SpectralAI.Burn@0.0.0") || string.Equals(dep.Ref, @"SpectralMD.ImagingApp@0.0.0"))
                     {
                         // Skip main project reference
                         continue;
