@@ -188,8 +188,9 @@ namespace CycloneDX.Tests
 
             string tempExcelPath = @"D:\Test\Bom\SpectralAI.Burn.xlsx";
             string modifiedExcelPath = Path.Combine(@"D:\Test\Bom\", "compare_modified_SpectralAI.Burn.xlsx");
+            string worksheetName = "parsed_bom_burn-ai";
 
-            UpdateExcelFromCsv(csvFilePath, tempExcelPath, modifiedExcelPath);
+            UpdateExcelFromCsv(csvFilePath, tempExcelPath, worksheetName, modifiedExcelPath);
 
             Assert.True(File.Exists(modifiedExcelPath));
         }
@@ -202,8 +203,9 @@ namespace CycloneDX.Tests
 
             string tempExcelPath = @"D:\Test\Bom\SpectralMD.ImagingApp.xlsx";
             string modifiedExcelPath = Path.Combine(@"D:\Test\Bom\", "compare_modified_SpectralMD.ImagingApp.xlsx");
+            string worksheetName = "parsed_bom_imaging_app";
 
-            UpdateExcelFromCsv(csvFilePath, tempExcelPath, modifiedExcelPath);
+            UpdateExcelFromCsv(csvFilePath, tempExcelPath, worksheetName, modifiedExcelPath);
 
             Assert.True(File.Exists(modifiedExcelPath));
         }
@@ -357,7 +359,7 @@ namespace CycloneDX.Tests
         }
 
 
-        private void UpdateExcelFromCsv(string csvFilePath, string excelFilePath, string excelOutputFilePath)
+        private void UpdateExcelFromCsv(string csvFilePath, string excelFilePath, string worksheetName, string excelOutputFilePath)
         {
             // 1. Read local CSV file
             Dictionary<string, SbmRecord> csvData = ReadCsv(csvFilePath);
@@ -366,7 +368,7 @@ namespace CycloneDX.Tests
             HashSet<string> excelPURLs = [];
             using (XLWorkbook workbook = new(excelFilePath))
             {
-                IXLWorksheet worksheet = workbook.Worksheet("parsed_bom_burn-ai");  // or choose by name
+                IXLWorksheet worksheet = workbook.Worksheet(worksheetName);  // or choose by name
 
                 // 3. Add scribble and red background for the no-exist in CSV
                 var lastRowUsed = worksheet.LastRowUsed();
