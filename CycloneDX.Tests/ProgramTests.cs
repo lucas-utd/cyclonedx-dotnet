@@ -142,7 +142,7 @@ namespace CycloneDX.Tests
         {
             string[] args =
             [
-                @"D:\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
+                @"D:\WorkProjects\AI-Burn-Commercial-App\SpectralAI.Burn.sln",
                 "-t",
                 "-o", @"D:\Test\Bom",
                 "-fn", "SpectralAI.Burn.json"
@@ -164,7 +164,7 @@ namespace CycloneDX.Tests
         {
             string[] args =
             [
-                @"D:\DV-Imaging-App\SpectralMD.ImagingApp.sln",
+                @"D:\WorkProjects\DV-Imaging-App\SpectralMD.ImagingApp.sln",
                 "-t",
                 "-o", @"D:\Test\Bom",
                 "-fn", "SpectralMD.ImagingApp.json"
